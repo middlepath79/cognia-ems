@@ -1,0 +1,16 @@
+import PageHeading from "@/components/page-heading";
+import CsvDownload from "@/components/csv-download";
+import { getCurrentSchool } from "@/lib/current-school";
+
+export default async function GpaTrendsPage(){
+ const {school,supabase}=await getCurrentSchool();
+ const [{data:gpas},{data:sessions},{data:terms},{data:students}]=await Promise.all([
+  supabase.from("academic_period_gpas").select("student_id,academic_session_id,academic_term_id,period_gpa,cumulative_gpa,applicable_credits").eq("school_id",school.id).order("calculated_at",{ascending:false}),
+  supabase.from("academic_sessions").select("id,name").eq("school_id",school.id).order("start_date"),
+  supabase.from("academic_terms").select("id,name").eq("school_id",school.id).order("starts_on"),
+  supabase.from("students").select("id,student_number,first_name,middle_name,surname").eq("school_id",school.id)
+ ]);
+ const rows=(gpas??[]).map(g=>({student:(students??[]).find(s=>s.id===g.student_id),session:(sessions??[]).find(s=>s.id===g.academic_session_id)?.name??"—",term:(terms??[]).find(t=>t.id===g.academic_term_id)?.name??"—",period:g.period_gpa,cumulative:g.cumulative_gpa,credits:g.applicable_credits}));
+ const csv=["Student,Session,Period,GPA,CGPA,Credits"].join(",")+"\n"+rows.map(r=>[[r.student?.first_name,r.student?.middle_name,r.student?.surname].filter(Boolean).join(" "),r.session,r.term,r.period??"",r.cumulative??"",r.credits??""].join(",")).join("\n");
+ return <><PageHeading title="GPA & CGPA trends" description={`Institution GPA and cumulative GPA distribution for ${school.name}.`} action={<CsvDownload csv={csv} filename={`gpa-trends-${new Date().toISOString().slice(0,10)}.csv`} disabled={!rows.length}/>}/><section className="mb-5 grid gap-4 sm:grid-cols-3"><div className="card p-4"><p className="text-xs text-slate-500">GPA records</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></div><div className="card p-4"><p className="text-xs text-slate-500">Average period GPA</p><p className="mt-1 text-2xl font-bold">{rows.length?(rows.reduce((s,r)=>s+(Number(r.period)||0),0)/rows.length).toFixed(2):"—"}</p></div><div className="card p-4"><p className="text-xs text-slate-500">Average CGPA</p><p className="mt-1 text-2xl font-bold">{rows.length?(rows.reduce((s,r)=>s+(Number(r.cumulative)||0),0)/rows.length).toFixed(2):"—"}</p></div></section><section className="card overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-left">Student</th><th className="p-3 text-left">Session / period</th><th className="p-3 text-right">GPA</th><th className="p-3 text-right">CGPA</th><th className="p-3 text-right">Credits</th></tr></thead><tbody>{rows.map((r,i)=><tr key={i} className="border-t"><td className="p-3">{[r.student?.first_name,r.student?.middle_name,r.student?.surname].filter(Boolean).join(" ")||"—"}</td><td className="p-3">{r.session} · {r.term}</td><td className="p-3 text-right font-semibold text-indigo-700">{r.period??"—"}</td><td className="p-3 text-right">{r.cumulative??"—"}</td><td className="p-3 text-right">{r.credits??"—"}</td></tr>)}</tbody></table></div>{!rows.length&&<p className="p-8 text-center text-slate-500">No GPA records have been calculated.</p>}</section></>;
+}
