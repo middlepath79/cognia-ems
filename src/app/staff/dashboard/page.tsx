@@ -187,7 +187,7 @@ export default async function StaffDashboardPage() {
 
         <section className="card mt-5 p-5 sm:p-6">
           <h2 className="text-sm font-bold text-slate-900">My work</h2>
-          {canAccessTeacherWorkspace(membership.role, staff.staff_category) ? (
+          {staff && canAccessTeacherWorkspace(membership.role, staff.staff_category) ? (
             <div className="mt-3 flex flex-wrap gap-3">
               <Link className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-slate-50" href="/admin/attendance">Attendance workspace</Link>
               <Link className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-slate-50" href="/admin/timetable">Timetable</Link>
