@@ -40,6 +40,8 @@ export async function createInvitationAction(_previous: InvitationActionState, f
     invite_token_hash: tokenHash,
   });
   if (error) return { error: "The invitation could not be created. Check the email and try again." };
+  revalidatePath("/admin/invitations");
+  revalidatePath("/admin/staff");
   return { token };
 }
 

@@ -6,6 +6,7 @@ import {
   canAccessTeacherWorkspace,
   createStaffCsv,
   getInvitationDisplayStatus,
+  matchesStaffCategoryForRole,
   validateStaffContact,
   validateStaffForm,
   type StaffFormValues,
@@ -53,6 +54,7 @@ test("staff profile can be created before account activation and validates invit
   const pendingStaff = { ...validStaffForm, userId: "" };
   assert.equal(validateStaffForm(pendingStaff), null);
   assert.match(validateStaffForm({ ...pendingStaff, email: "" }) ?? "", /email address/i);
+  assert.equal(validateStaffForm({ ...validStaffForm, email: "" }), null);
   assert.match(validateStaffForm({ ...pendingStaff, staffCategory: "administrator" }) ?? "", /category/i);
   assert.match(validateStaffForm({ ...pendingStaff, profilePhotoUrl: "javascript:alert(1)" }) ?? "", /HTTP or HTTPS/i);
 });
@@ -65,9 +67,24 @@ test("staff contact edits validate only the approved personal fields", () => {
 });
 
 test("non-teaching staff are not granted teacher workspace access", () => {
-  assert.equal(canAccessTeacherWorkspace("teacher"), true);
-  assert.equal(canAccessTeacherWorkspace("staff"), false);
-  assert.equal(canAccessTeacherWorkspace("school_admin"), false);
+  assert.equal(canAccessTeacherWorkspace("teacher", "teaching"), true);
+  assert.equal(canAccessTeacherWorkspace("teacher", "non_teaching"), false);
+  assert.equal(canAccessTeacherWorkspace("staff", "non_teaching"), false);
+  assert.equal(canAccessTeacherWorkspace("school_admin", "teaching"), false);
+  assert.equal(matchesStaffCategoryForRole("teacher", "teaching"), true);
+  assert.equal(matchesStaffCategoryForRole("teacher", "non_teaching"), false);
+  assert.equal(matchesStaffCategoryForRole("staff", "non_teaching"), true);
+  assert.equal(matchesStaffCategoryForRole("staff", "teaching"), false);
+  assert.equal(matchesStaffCategoryForRole("school_admin", "non_teaching"), true);
+});
+
+test("teacher server actions require an active teaching-category staff profile", () => {
+  const attendanceWorkspace = fs.readFileSync(
+    path.join(process.cwd(), "src", "lib", "attendance-workspace.ts"),
+    "utf8",
+  );
+  assert.match(attendanceWorkspace, /membership\.role === "teacher"[\s\S]*from\("staff_records"\)[\s\S]*eq\("school_id", membership\.school_id\)[\s\S]*eq\("user_id", userId\)[\s\S]*eq\("account_status", "active"\)/);
+  assert.match(attendanceWorkspace, /matchesStaffCategoryForRole\(membership\.role, staff\.staff_category\)/);
 });
 
 test("staff invitation status shows pending, accepted, revoked and elapsed invitations accurately", () => {
@@ -271,6 +288,50 @@ test("teacher and staff invitations require a same-school pending profile before
   assert.match(accept, /set user_id = \(select auth\.uid\(\)\),\s*account_status = 'active'[\s\S]*where id = pending_staff_record_id[\s\S]*school_id = invite\.school_id/i);
   assert.match(accept, /get diagnostics linked_rows = row_count;\s*if linked_rows <> 1 then\s*raise exception 'The staff profile could not be linked/i);
   assert.match(accept, /insert into public\.school_memberships \(school_id, user_id, role, status\)\s+values \(invite\.school_id, \(select auth\.uid\(\)\), invite\.role, 'active'\)/i);
+});
+
+test("admin staff edits submit and resolve the selected record ID within the active school", () => {
+  const editor = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "staff", "staff-editor.tsx"),
+    "utf8",
+  );
+  const actions = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "staff", "actions.ts"),
+    "utf8",
+  );
+  const directory = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "staff", "staff-directory.tsx"),
+    "utf8",
+  );
+
+  assert.match(editor, /type="hidden" name="id" value=\{staff\?\.id \?\? ""\}/);
+  assert.match(editor, /<option value=\{staff\.user_id\}>[\s\S]*Keep linked account/);
+  assert.match(actions, /const \{ supabase, school, userId: actor \} = await getCurrentSchool\(\)/);
+  assert.match(actions, /eq\("id", values\.id\)[\s\S]*eq\("school_id", school\.id\)/);
+  assert.match(actions, /if \(values\.id && !existing\)/);
+  assert.match(actions, /linkedProfileQuery = linkedProfileQuery\.neq\("id", existing\.id\)/);
+  assert.match(actions, /if \(error\?\.code === "23505"\)/);
+  assert.match(directory, /staff\.find\(\(record\) => record\.id === profileStaffId\)/);
+});
+
+test("staff profile creation is separate from the school invitation workflow", () => {
+  const staffActions = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "staff", "actions.ts"),
+    "utf8",
+  );
+  const invitationActions = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "invitations", "actions.ts"),
+    "utf8",
+  );
+  const editor = fs.readFileSync(
+    path.join(process.cwd(), "src", "app", "admin", "staff", "staff-editor.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(staffActions, /rpc\("create_school_invitation"/);
+  assert.match(editor, /Account invitations are managed separately/);
+  assert.match(invitationActions, /rpc\("create_school_invitation"/);
+  assert.match(invitationActions, /revalidatePath\("\/admin\/staff"\)/);
 });
 
 test("staff contact RPC updates only phone and address for the caller's active staff profile", () => {

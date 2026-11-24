@@ -91,12 +91,12 @@ async function getClassPerformance(schoolId: string, filters: ReportFilters): Pr
   let resultsResponse: { data: unknown[] | null; error: unknown } = { data: [], error: null };
   if (studentIds.length > 0) {
     let resultsQuery = supabase
-      .from("final_results")
-      .select("id,student_id,subject_id,session_id,term_id,ca_contribution,examination_contribution,final_total,grade,grade_point,subject:subjects!inner(id,name,code,credits)")
+      .from("academic_period_results")
+      .select("id,student_id,subject_id,academic_session_id,academic_term_id,ca_contribution,examination_contribution,final_total,grade,grade_point,subject:subjects!inner(id,name,code,credits)")
       .eq("school_id", schoolId)
       .in("student_id", studentIds);
-    if (filters.sessionId) resultsQuery = resultsQuery.eq("session_id", filters.sessionId);
-    if (filters.termId) resultsQuery = resultsQuery.eq("term_id", filters.termId);
+    if (filters.sessionId) resultsQuery = resultsQuery.eq("academic_session_id", filters.sessionId);
+    if (filters.termId) resultsQuery = resultsQuery.eq("academic_term_id", filters.termId);
     resultsResponse = await resultsQuery;
   }
   const classesResponse = await supabase

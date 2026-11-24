@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowDownUp, ChevronLeft, ChevronRight, Mail, Plus, Search, Users, X } from "lucide-react";
 import StaffEditor from "./staff-editor";
 import StaffProfile from "./staff-profile";
@@ -95,13 +96,31 @@ export default function StaffDirectoryClient({
   stats: StaffDirectoryStats;
   filters: StaffDirectoryFilters;
 }) {
+  const router = useRouter();
   const [page, setPage] = useState(1);
-  const [profileStaff, setProfileStaff] = useState<StaffRecord | null>(null);
-  const [editor, setEditor] = useState<{ staff: StaffRecord | null } | null>(null);
+  const [profileStaffId, setProfileStaffId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<{ staffId: string | null } | null>(null);
   const [notice, setNotice] = useState("");
 
   const filterKey = [filters.q, filters.status, filters.department, filters.category, filters.account, filters.sort, filters.direction].join("|");
   useEffect(() => setPage(1), [filterKey]);
+  const profileStaff = useMemo(
+    () => staff.find((record) => record.id === profileStaffId) ?? null,
+    [profileStaffId, staff],
+  );
+  const editorStaff = useMemo(
+    () => (editor?.staffId ? staff.find((record) => record.id === editor.staffId) ?? null : null),
+    [editor, staff],
+  );
+  useEffect(() => {
+    if (profileStaffId && !staff.some((record) => record.id === profileStaffId)) {
+      setProfileStaffId(null);
+    }
+    if (editor?.staffId && !staff.some((record) => record.id === editor.staffId)) {
+      setEditor(null);
+      setNotice("That staff profile is no longer available in this directory. Refresh and try again.");
+    }
+  }, [editor?.staffId, profileStaffId, staff]);
 
   const departmentsById = useMemo(() => new Map(departments.map((department) => [department.id, department.name])), [departments]);
   const managersById = useMemo(() => new Map(managers.map((manager) => [manager.id, getStaffName({ ...manager, middle_name: null })])), [managers]);
@@ -149,7 +168,8 @@ export default function StaffDirectoryClient({
   const handleSaved = useCallback((message: string) => {
     setEditor(null);
     setNotice(message);
-  }, []);
+    router.refresh();
+  }, [router]);
 
   function invitationFor(record: StaffRecord): StaffInvitation | null {
     const role = record.staff_category === "teaching" ? "teacher" : "staff";
@@ -157,8 +177,8 @@ export default function StaffDirectoryClient({
   }
 
   function openEditor(record: StaffRecord | null) {
-    setProfileStaff(null);
-    setEditor({ staff: record });
+    setProfileStaffId(null);
+    setEditor({ staffId: record?.id ?? null });
   }
 
   return (
@@ -272,7 +292,7 @@ export default function StaffDirectoryClient({
                           <div className="flex min-w-0 items-center gap-3">
                             <StaffAvatar name={name} />
                             <div className="min-w-0">
-                              <button type="button" onClick={() => setProfileStaff(record)} className="block max-w-[220px] truncate text-left font-semibold text-slate-900 hover:text-indigo-700">{name}</button>
+                              <button type="button" onClick={() => setProfileStaffId(record.id)} className="block max-w-[220px] truncate text-left font-semibold text-slate-900 hover:text-indigo-700">{name}</button>
                               <p className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500">{record.email || "No email provided"}</p>
                             </div>
                           </div>
@@ -298,7 +318,7 @@ export default function StaffDirectoryClient({
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setProfileStaff(record)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white hover:text-indigo-700">View</button>
+                            <button type="button" onClick={() => setProfileStaffId(record.id)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white hover:text-indigo-700">View</button>
                             <button type="button" onClick={() => openEditor(record)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white hover:text-indigo-700">Edit</button>
                           </div>
                         </td>
@@ -338,7 +358,7 @@ export default function StaffDirectoryClient({
                       <StaffAccountStatusControl id={record.id} status={record.account_status} />
                     )}
                     <div className="mt-4 flex gap-2">
-                      <button type="button" onClick={() => setProfileStaff(record)} className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">View profile</button>
+                      <button type="button" onClick={() => setProfileStaffId(record.id)} className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">View profile</button>
                       <button type="button" onClick={() => openEditor(record)} className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">Edit</button>
                     </div>
                   </article>
@@ -370,16 +390,16 @@ export default function StaffDirectoryClient({
           membership={profileStaff.user_id ? membershipByUserId.get(profileStaff.user_id) ?? null : null}
           invitation={invitationFor(profileStaff)}
           onEdit={() => openEditor(profileStaff)}
-          onClose={() => setProfileStaff(null)}
+          onClose={() => setProfileStaffId(null)}
         />
       )}
-      {editor && (
+      {editor && (!editor.staffId || editorStaff) && (
         <StaffEditor
-          staff={editor.staff}
+          staff={editorStaff}
           departments={departments}
           managers={managers}
           memberships={memberships}
-          invitation={editor.staff ? invitationFor(editor.staff) : null}
+          invitation={editorStaff ? invitationFor(editorStaff) : null}
           onSaved={handleSaved}
           onClose={() => setEditor(null)}
         />

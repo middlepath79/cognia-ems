@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import PageHeading from "@/components/page-heading";
+import CogniaBrand from "@/components/brand/cognia-brand";
 import { createClient } from "@/lib/supabase/server";
 import { approveSchoolAction } from "./actions";
 
@@ -16,7 +17,7 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
     .maybeSingle();
   if (platformAdministratorError) {
     console.error("Unable to verify platform administrator access", platformAdministratorError.message);
-    return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="card max-w-lg p-8 text-center"><h1 className="text-xl font-bold text-slate-900">Platform access could not be verified</h1><p className="mt-3 text-sm leading-6 text-slate-500">We couldn’t verify your platform permissions. Please try again. If the problem continues, contact support.</p></section></main>;
+    return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="card max-w-lg p-8 text-center"><CogniaBrand href="/" tagline size="standard" className="mb-6 justify-center" /><h1 className="text-xl font-bold text-slate-900">Platform access could not be verified</h1><p className="mt-3 text-sm leading-6 text-slate-500">We couldn’t verify your platform permissions. Please try again. If the problem continues, contact support.</p></section></main>;
   }
   if (!platformAdministrator) redirect("/admin");
 
@@ -29,6 +30,7 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
   return (
     <main className="min-h-screen bg-slate-50 p-5 sm:p-8">
       <div className="mx-auto max-w-5xl">
+        <CogniaBrand href="/" tagline size="standard" className="mb-6" />
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <PageHeading title="Platform administration" description="Review institution onboarding and manage platform access." />
           {schoolAdminMemberships?.length ? (

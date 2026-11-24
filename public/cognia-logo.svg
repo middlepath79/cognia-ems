@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" fill="none">
-  <rect x="2" y="2" width="60" height="60" rx="18" fill="#3559E0"/>
-  <path d="M45 19a19 19 0 1 0 0 26l-7-7a9 9 0 1 1 0-12l7-7Z" fill="white"/>
-  <text x="76" y="31" fill="#101828" font-family="Arial, sans-serif" font-size="22" font-weight="800" letter-spacing="1">COGNIA</text>
-  <text x="77" y="47" fill="#667085" font-family="Arial, sans-serif" font-size="8" font-weight="700" letter-spacing="1.5">EDUCATION</text>
-</svg>

@@ -1,4 +1,5 @@
 import { selectSchoolAction } from "@/app/admin/actions";
+import CogniaBrand from "@/components/brand/cognia-brand";
 
 type SchoolOption = { id: string; name: string };
 
@@ -6,7 +7,7 @@ export function SchoolSelector({ schools, pendingSchools }: { schools: SchoolOpt
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-5">
       <section className="card w-full max-w-lg p-7 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">COGNIA EDUCATION MANAGEMENT</p>
+        <CogniaBrand href="/" tagline size="standard" className="mb-6" />
         <h1 className="mt-3 text-2xl font-bold text-slate-900">Choose an institution workspace</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">Select an approved institution you administer.</p>
         <div className="mt-6 space-y-3">

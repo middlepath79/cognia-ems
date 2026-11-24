@@ -42,9 +42,6 @@ export default function StaffProfile({
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
   }, []);
 
   return (

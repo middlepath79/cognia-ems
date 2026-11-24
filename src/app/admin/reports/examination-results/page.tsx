@@ -6,7 +6,7 @@ export default async function ExaminationResultsReport(){
  const {school,supabase}=await getCurrentSchool();
  const [{data:exams},{data:results},{data:subjects},{data:students}]=await Promise.all([
   supabase.from("examinations").select("id,name,status,maximum_marks,assessment_model").eq("school_id",school.id).order("examination_date",{ascending:false}),
-  supabase.from("examination_results").select("examination_id,status,score,maximum_score,student_id").eq("school_id",school.id),
+  supabase.from("examination_results").select("examination_id,status,score,student_id").eq("school_id",school.id),
   supabase.from("subjects").select("id,name,code").eq("school_id",school.id),
   supabase.from("students").select("id,student_number,first_name,middle_name,surname").eq("school_id",school.id)
  ]);

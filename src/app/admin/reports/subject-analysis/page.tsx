@@ -6,7 +6,7 @@ export default async function SubjectAnalysisPage(){
  const {school,supabase}=await getCurrentSchool();
  const [{data:subjects},{data:results},{data:assessments},{data:sessions},{data:terms}]=await Promise.all([
   supabase.from("subjects").select("id,name,code").eq("school_id",school.id).order("name"),
-  supabase.from("final_results").select("subject_id,final_total,grade_point,status").eq("school_id",school.id).eq("status","published"),
+  supabase.from("academic_period_results").select("subject_id,final_total,grade_point,status").eq("school_id",school.id).eq("status","published"),
   supabase.from("assessments").select("subject_id,status").eq("school_id",school.id),
   supabase.from("academic_sessions").select("id,name").eq("school_id",school.id).order("start_date",{ascending:false}),
   supabase.from("academic_terms").select("id,name").eq("school_id",school.id).order("starts_on",{ascending:false})

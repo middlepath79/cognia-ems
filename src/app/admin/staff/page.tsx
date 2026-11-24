@@ -149,6 +149,11 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   }));
 
   const rows = (staff ?? []) as StaffRecord[];
+  const activeMembershipIds = new Set(
+    membershipOptions
+      .filter((membership) => membership.status === "active")
+      .map((membership) => membership.user_id),
+  );
   const emails = [...new Set(rows.map((record) => record.email?.toLowerCase()).filter((email): email is string => Boolean(email)))];
   let invitations: StaffInvitation[] = [];
   if (emails.length) {

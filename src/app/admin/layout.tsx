@@ -24,30 +24,55 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AuthorizationLookupError />;
   }
 
-  const memberships = membershipsResult.data;
+  const memberships = membershipsResult.data ?? [];
   const platformAdministrator = platformAdministratorResult.data;
-  const adminMemberships = memberships?.filter((membership) => membership.role === "school_admin") ?? [];
+  const adminMemberships = memberships.filter((membership) => membership.role === "school_admin");
+  const candidateTeacherMemberships = memberships.filter((membership) => membership.role === "teacher");
+  let teacherMemberships = candidateTeacherMemberships;
+  if (candidateTeacherMemberships.length) {
+    const { data: teachingStaffRecords, error: teachingStaffError } = await supabase
+      .from("staff_records")
+      .select("school_id")
+      .eq("user_id", userId)
+      .eq("account_status", "active")
+      .eq("staff_category", "teaching")
+      .in("school_id", candidateTeacherMemberships.map((membership) => membership.school_id));
+    if (teachingStaffError) {
+      console.error("Unable to verify teaching staff access", teachingStaffError.message);
+      return <AuthorizationLookupError />;
+    }
+    const teachingSchoolIds = new Set((teachingStaffRecords ?? []).map((record) => record.school_id));
+    teacherMemberships = candidateTeacherMemberships.filter((membership) => teachingSchoolIds.has(membership.school_id));
+  }
+  const requestedPath = (await headers()).get("x-cognia-pathname");
+  const teacherRoute = requestedPath === "/admin/attendance" ||
+    requestedPath === "/admin/timetable" ||
+    requestedPath === "/admin/assessments" ||
+    requestedPath?.startsWith("/admin/assessments/") ||
+    requestedPath === "/admin/examinations" ||
+    requestedPath?.startsWith("/admin/examinations/");
+  const cookieStore = await cookies();
+  const selectedSchoolId = cookieStore.get(ACTIVE_SCHOOL_COOKIE)?.value;
+  const selectedAdminMembership = adminMemberships.find((membership) => membership.school_id === selectedSchoolId);
+  const selectedTeacherMembership = teacherMemberships.find((membership) => membership.school_id === selectedSchoolId);
+  if (teacherRoute && selectedTeacherMembership && !selectedAdminMembership) {
+    return (
+      <TeacherWorkspaceShell
+        supabase={supabase}
+        schoolIds={[selectedTeacherMembership.school_id]}
+        selectedSchoolId={selectedSchoolId}
+      >
+        {children}
+      </TeacherWorkspaceShell>
+    );
+  }
   if (!adminMemberships.length) {
     if (platformAdministrator) redirect("/platform");
-    const teacherMemberships = memberships?.filter((membership) => membership.role === "teacher") ?? [];
-    const requestedPath = (await headers()).get("x-cognia-pathname");
-    if (memberships?.length && requestedPath === "/admin/staff") return <StaffAccessDenied />;
-    const teacherRoute = requestedPath === "/admin/attendance" || requestedPath === "/admin/timetable" || requestedPath === "/admin/assessments" || requestedPath?.startsWith("/admin/assessments/") || requestedPath === "/admin/examinations" || requestedPath?.startsWith("/admin/examinations/");
     if (teacherMemberships.length && teacherRoute) {
-      const teacherSchoolIds = teacherMemberships.map((membership) => membership.school_id);
-      const { data: teacherSchools, error: teacherSchoolsError } = await supabase.from("schools").select("id,name,status,institution_type,academic_period_label").in("id", teacherSchoolIds);
-      if (teacherSchoolsError) return <AuthorizationLookupError/>;
-      const availableSchools = (teacherSchools ?? []).filter((item) => item.status === "active" && teacherSchoolIds.includes(item.id));
-      if (!availableSchools.length) redirect("/portal");
-      const cookieStore = await cookies();
-      const school = availableSchools.find((item) => item.id === cookieStore.get(ACTIVE_SCHOOL_COOKIE)?.value) ?? availableSchools[0];
-      const [{ data: activeSession }, { data: activeTerm }] = await Promise.all([
-        supabase.from("academic_sessions").select("id,name").eq("school_id",school.id).eq("is_active",true).maybeSingle(),
-        supabase.from("academic_terms").select("name").eq("school_id",school.id).eq("is_active",true).maybeSingle(),
-      ]);
-      return <AdminShell school={school} schools={[]} academicSessionName={activeSession?.name ?? null} activeTermName={activeTerm?.name ?? null} teacherView>{children}</AdminShell>;
+      return <TeacherWorkspaceShell supabase={supabase} schoolIds={teacherMemberships.map((membership) => membership.school_id)} selectedSchoolId={selectedSchoolId}>{children}</TeacherWorkspaceShell>;
     }
-    if (memberships?.length) redirect("/portal");
+    if (memberships.some((membership) => membership.role === "teacher" || membership.role === "staff")) redirect("/staff");
+    if (memberships.length) redirect("/portal");
     redirect("/onboarding");
   }
 
@@ -66,9 +91,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/portal?status=suspended");
   }
 
-  const cookieStore = await cookies();
-  const selectedId = cookieStore.get(ACTIVE_SCHOOL_COOKIE)?.value;
-  const selectedSchool = approvedSchools.find((school) => school.id === selectedId);
+  const selectedSchool = approvedSchools.find((school) => school.id === selectedSchoolId);
   if (!selectedSchool && approvedSchools.length > 1) {
     return <SchoolSelector schools={approvedSchools} pendingSchools={pendingSchools} />;
   }
@@ -82,10 +105,51 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return <AdminShell school={school} schools={approvedSchools} academicSessionName={activeSession?.name ?? null} activeTermName={activeTerm?.name ?? null} showPlatformAdministration={Boolean(platformAdministrator)}>{children}</AdminShell>;
 }
 
-function AuthorizationLookupError() {
-  return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="card max-w-lg p-8 text-center"><h1 className="text-xl font-bold text-slate-900">Access could not be verified</h1><p className="mt-3 text-sm leading-6 text-slate-500">We couldn’t verify your school or platform permissions. Please try again. If the problem continues, contact support.</p></section></main>;
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
+
+async function TeacherWorkspaceShell({
+  supabase,
+  schoolIds,
+  selectedSchoolId,
+  children,
+}: {
+  supabase: ServerClient;
+  schoolIds: string[];
+  selectedSchoolId?: string;
+  children: React.ReactNode;
+}) {
+  const { data: teacherSchools, error: teacherSchoolsError } = await supabase
+    .from("schools")
+    .select("id,name,status,institution_type,academic_period_label")
+    .in("id", schoolIds);
+  if (teacherSchoolsError) {
+    console.error("Unable to verify teaching institution", teacherSchoolsError.message);
+    return <AuthorizationLookupError />;
+  }
+  const availableSchools = (teacherSchools ?? []).filter(
+    (school) => school.status === "active" && schoolIds.includes(school.id),
+  );
+  if (!availableSchools.length) redirect("/access-denied");
+  const selectedSchool = availableSchools.find((school) => school.id === selectedSchoolId);
+  if (!selectedSchool && availableSchools.length > 1) redirect("/workspace/select");
+  const school = selectedSchool ?? availableSchools[0];
+  const [{ data: activeSession }, { data: activeTerm }] = await Promise.all([
+    supabase.from("academic_sessions").select("id,name").eq("school_id", school.id).eq("is_active", true).maybeSingle(),
+    supabase.from("academic_terms").select("name").eq("school_id", school.id).eq("is_active", true).maybeSingle(),
+  ]);
+  return (
+    <AdminShell
+      school={school}
+      schools={[]}
+      academicSessionName={activeSession?.name ?? null}
+      activeTermName={activeTerm?.name ?? null}
+      teacherView
+    >
+      {children}
+    </AdminShell>
+  );
 }
 
-function StaffAccessDenied() {
-  return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="card max-w-lg p-8 text-center" role="alert"><h1 className="text-xl font-bold text-slate-900">Access denied</h1><p className="mt-3 text-sm leading-6 text-slate-500">Only an active school administrator can open Staff Management.</p></section></main>;
+function AuthorizationLookupError() {
+  return <main className="grid min-h-screen place-items-center bg-slate-50 p-5"><section className="card max-w-lg p-8 text-center"><h1 className="text-xl font-bold text-slate-900">Access could not be verified</h1><p className="mt-3 text-sm leading-6 text-slate-500">We couldn’t verify your school or platform permissions. Please try again. If the problem continues, contact support.</p></section></main>;
 }

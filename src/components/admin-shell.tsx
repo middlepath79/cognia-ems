@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import CogniaBrand from "@/components/brand/cognia-brand";
 import {
   LayoutDashboard, Users, GraduationCap, ClipboardCheck, BookOpen, CalendarDays, School, FilePlus2,
   Wallet, ChartNoAxesCombined, Settings, Menu, X, Bell, Search, Mail, ClipboardList,
@@ -45,8 +46,7 @@ export default function AdminShell({ children, showPlatformAdministration = fals
       <div className={`overlay ${menuOpen ? "show" : ""}`} onClick={() => setMenuOpen(false)} />
       <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
         <div className="sidebar-brand">
-          <div className="brand-mark">{school.name.slice(0, 1).toUpperCase()}</div>
-          <div><div className="brand-name">{school.name}</div><div className="brand-sub">COGNIA</div></div>
+          <CogniaBrand tone="dark" size="compact" subtitle={school.name} className="flex-1" />
           <button className="ml-auto lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={19}/></button>
         </div>
 
@@ -94,9 +94,10 @@ export default function AdminShell({ children, showPlatformAdministration = fals
             </form>
           </div>
 
-          <p className="mt-4 text-center text-[10px] tracking-widest text-slate-500">
-  POWERED BY <span className="font-bold text-indigo-400">COGNIA</span>
-</p>
+          <div className="mt-4 flex flex-col items-center gap-2 text-[10px] tracking-widest text-slate-500">
+            <span>POWERED BY</span>
+            <CogniaBrand tone="dark" size="compact" />
+          </div>
         </div>
       </aside>
 
@@ -104,8 +105,8 @@ export default function AdminShell({ children, showPlatformAdministration = fals
         <header className="topbar">
           <div className="flex items-center gap-3">
             <button className="mobile-menu rounded-lg border border-slate-200 p-2 text-slate-700" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={19}/></button>
-            <div className="hidden items-center gap-2 text-xs text-slate-400 sm:flex"><span>COGNIA</span><span>/</span><span className="font-semibold text-slate-700">{school.name}</span></div>
-            <div className="sm:hidden text-sm font-bold text-slate-800">{school.name}</div>
+            <div className="hidden items-center gap-2 text-xs text-slate-400 sm:flex"><CogniaBrand size="compact" /><span>/</span><span className="font-semibold text-slate-700">{school.name}</span></div>
+            <CogniaBrand size="compact" subtitle={school.name} className="sm:hidden" />
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:flex">

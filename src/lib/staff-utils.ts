@@ -57,14 +57,20 @@ export function validateStaffContact(values: StaffContactValues): string | null 
   return null;
 }
 
-export function canAccessTeacherWorkspace(role: string): boolean {
-  return role === "teacher";
+export function canAccessTeacherWorkspace(role: string, staffCategory: string): boolean {
+  return role === "teacher" && staffCategory === "teaching";
+}
+
+export function matchesStaffCategoryForRole(role: string, staffCategory: string): boolean {
+  if (role === "teacher") return staffCategory === "teaching";
+  if (role === "staff") return staffCategory === "non_teaching";
+  return role === "school_admin" && ["teaching", "non_teaching"].includes(staffCategory);
 }
 
 export function validateStaffForm(values: StaffFormValues): string | null {
   if (values.id && !uuid.test(values.id)) return "This staff profile is invalid. Refresh and try again.";
   if (values.userId && !uuid.test(values.userId)) return "Select an active staff membership.";
-  if (!values.userId && !values.email) return "Enter an email address to invite this staff member.";
+  if (!values.userId && !values.email) return "Enter an email address for this unlinked staff profile.";
   if (!staffCategories.has(values.staffCategory)) return "Choose a staff category: teaching or non-teaching.";
   if (
     !values.employeeNumber.trim() ||

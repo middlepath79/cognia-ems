@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { saveStaffRecord, type StaffState } from "./actions";
 import { formatStaffValue, StaffStatusBadge } from "./staff-presentation";
 import type { StaffDepartment, StaffInvitation, StaffManager, StaffMembership, StaffRecord } from "./staff-types";
@@ -29,9 +29,6 @@ export default function StaffEditor({
   onClose: () => void;
 }) {
   const [state, action, pending] = useActionState(saveStaffRecord, initialState);
-  const [invitationLink, setInvitationLink] = useState("");
-  const [copyError, setCopyError] = useState("");
-  const [copied, setCopied] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const handledState = useRef<StaffState | null>(null);
   const linkedMembership = memberships.find((membership) => membership.user_id === staff?.user_id);
@@ -39,36 +36,14 @@ export default function StaffEditor({
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
   }, []);
 
   useEffect(() => {
-    setInvitationLink(state.invitationToken
-      ? `${window.location.origin}/accept-invitation?token=${state.invitationToken}`
-      : "");
-    setCopied(false);
-    setCopyError("");
-  }, [state.invitationToken]);
-
-  useEffect(() => {
-    if (state.success && !state.invitationToken && state !== handledState.current) {
+    if (state.success && state !== handledState.current) {
       handledState.current = state;
       onSaved(state.success);
     }
   }, [state, onSaved]);
-
-  async function copyInvitationLink() {
-    try {
-      await navigator.clipboard.writeText(invitationLink);
-      setCopied(true);
-      setCopyError("");
-    } catch {
-      setCopied(false);
-      setCopyError("Copying was unavailable. Select and copy the invitation link above.");
-    }
-  }
 
   return (
     <dialog
@@ -89,7 +64,7 @@ export default function StaffEditor({
                 {staff ? "Edit staff profile" : "Add staff member"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                {staff ? "Update personal and employment details." : "Create an employee profile and securely prepare account access."}
+                {staff ? "Update personal and employment details." : "Create an employee profile. Account invitations are managed separately."}
               </p>
             </div>
             <button type="button" onClick={() => dialogRef.current?.close()} aria-label="Close staff form" className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800">
@@ -98,10 +73,11 @@ export default function StaffEditor({
           </header>
 
           <form
-            key={staff?.id ?? state.invitationToken ?? "new-staff"}
+            key={staff?.id ?? "new-staff"}
             action={action}
             className="min-h-0 flex-1 overflow-y-auto"
           >
+            <input type="hidden" name="id" value={staff?.id ?? ""} />
             <div className="grid gap-6 p-5 sm:p-7">
               <section aria-labelledby="personal-information-heading">
                 <div className="mb-4 border-b border-slate-100 pb-3">
@@ -112,7 +88,7 @@ export default function StaffEditor({
                   <label className={label}>First name<input name="firstName" required maxLength={100} defaultValue={staff?.first_name ?? ""} className={input} autoComplete="given-name" /></label>
                   <label className={label}>Last name<input name="surname" required maxLength={100} defaultValue={staff?.surname ?? ""} className={input} autoComplete="family-name" /></label>
                   <label className={label}>Other names<input name="middleName" maxLength={100} defaultValue={staff?.middle_name ?? ""} className={input} autoComplete="additional-name" /></label>
-                  <label className={label}>Work email<input name="email" type="email" required maxLength={254} defaultValue={staff?.email ?? ""} className={input} autoComplete="email" /></label>
+                  <label className={label}>Work email<input name="email" type="email" maxLength={254} defaultValue={staff?.email ?? ""} className={input} autoComplete="email" /></label>
                   <label className={label}>Phone number<input name="phone" type="tel" maxLength={40} defaultValue={staff?.phone ?? ""} className={input} autoComplete="tel" /></label>
                   <label className={label}>Profile photograph URL<input name="profilePhotoUrl" type="url" maxLength={2048} defaultValue={staff?.profile_photo_url ?? ""} className={input} placeholder="https://" /></label>
                   <label className={label}>
@@ -186,11 +162,14 @@ export default function StaffEditor({
                 <label className={label}>
                   Link an existing school account (optional)
                   <select name="userId" defaultValue={staff?.user_id ?? ""} className={input}>
-                    <option value="">
-                      {staff
-                        ? staff.user_id ? `Keep linked account${linkedMembership ? ` · ${linkedMembership.role}` : ""}` : "Keep account unlinked"
-                        : "Create a new account invitation"}
-                    </option>
+                    {!staff?.user_id && (
+                      <option value="">{staff ? "Keep account unlinked" : "Do not link an account yet"}</option>
+                    )}
+                    {staff?.user_id && (
+                      <option value={staff.user_id}>
+                        Keep linked account{linkedMembership ? ` · ${linkedMembership.role}` : ""}
+                      </option>
+                    )}
                     {memberships.filter((membership) => membership.user_id !== staff?.user_id).map((membership) => (
                       <option key={membership.user_id} value={membership.user_id}>
                         {membership.display_name || membership.user_id} · {membership.role}{membership.status === "suspended" ? " (suspended)" : ""}
@@ -210,24 +189,13 @@ export default function StaffEditor({
                   </div>
                 ) : (
                   <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-                    A secure invitation link is generated after saving a new, unlinked staff profile. Invitation access is verified by the server.
+                    Saving creates only the employee profile. Use Invitations when you are ready to grant account access; the invitation is matched to this institution and employee email.
                   </p>
                 )}
               </section>
 
               {state.error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">{state.error}</p>}
               {state.success && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">{state.success}</p>}
-              {invitationLink && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-sm font-semibold text-emerald-900">Invitation ready to share</p>
-                  <p className="mt-1 break-all text-xs text-emerald-800">{invitationLink}</p>
-                  <button type="button" onClick={copyInvitationLink} className="mt-3 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100">
-                    {copied ? "Copied" : "Copy invitation link"}
-                  </button>
-                  {copyError && <p role="alert" className="mt-2 text-xs text-rose-700">{copyError}</p>}
-                  <p className="mt-2 text-xs text-emerald-800">This one-time link is shown only now. It cannot be recovered later.</p>
-                </div>
-              )}
             </div>
             <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 sm:px-7">
               <p className="text-xs text-slate-500">Changes are protected by your school administrator access.</p>

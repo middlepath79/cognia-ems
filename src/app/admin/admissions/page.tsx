@@ -8,7 +8,7 @@ export default async function AdmissionsPage({ searchParams }: Props) {
   const { supabase, school } = await getCurrentSchool();
   const [applicationsResult, armsResult, classesResult, programmesResult, levelsResult, sessionsResult, termsResult] = await Promise.all([
     supabase.from("admission_applications").select("id, application_reference, first_name, middle_name, surname, email, phone, application_status, applied_at, decision_notes, applied_class_arm_id, applied_programme_id, applied_academic_level_id, academic_session_id, academic_term_id").eq("school_id", school.id).order("applied_at", { ascending: false }).limit(100),
-    supabase.from("class_arms").select("id, name, class_id, is_active").eq("school_id", school.id).order("name"),
+    supabase.from("class_arms").select("id, name, class_id").eq("school_id", school.id).order("name"),
     supabase.from("school_classes").select("id, name").eq("school_id", school.id),
     supabase.from("academic_programmes").select("id, name, is_active").eq("school_id", school.id).order("name"),
     supabase.from("academic_levels").select("id, name, programme_id, is_active").eq("school_id", school.id).order("sequence").order("name"),

@@ -6,12 +6,11 @@ import { updateMyStaffContact, type StaffContactState } from "./actions";
 const initialState: StaffContactState = {};
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
 
-export default function StaffContactForm({ phone, address, schoolId }: { phone: string; address: string; schoolId: string }) {
+export default function StaffContactForm({ phone, address }: { phone: string; address: string }) {
   const [state, action, pending] = useActionState(updateMyStaffContact, initialState);
 
   return (
     <form action={action} className="mt-4 grid gap-3">
-      <input type="hidden" name="schoolId" value={schoolId} />
       <label className="text-xs font-medium text-slate-600">
         Phone
         <input name="phone" type="tel" maxLength={40} defaultValue={phone} className={input} />

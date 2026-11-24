@@ -13,6 +13,8 @@ npm run dev
 
 Open http://localhost:3000. Configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to connect the application.
 
+For Vercel, set both variables in Project Settings > Environment Variables for Production and any Preview or Development environments you use, then redeploy. `NEXT_PUBLIC_` values are embedded at build time. The auth pages can be prerendered without them, but Supabase middleware and authentication will not work until valid values are configured.
+
 ## Current foundation
 
 - Supabase email/password authentication, password reset, invitation acceptance, and session refresh.

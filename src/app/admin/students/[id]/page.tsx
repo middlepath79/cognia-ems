@@ -23,7 +23,7 @@ export default async function StudentProfilePage({ params, searchParams }: Props
     supabase.from("student_guardians").select("id, guardian_id, relationship, is_emergency_contact, is_active").eq("student_id", id).eq("school_id", school.id).eq("is_active", true),
     supabase.from("student_documents").select("id, storage_path, file_name, document_type, content_type, size_bytes, created_at").eq("student_id", id).eq("school_id", school.id).order("created_at", { ascending: false }),
     student.admission_application_id ? supabase.from("admission_applications").select("application_reference, application_status, applied_at, decision_date, decision_notes, applied_class_arm_id, applied_programme_id, applied_academic_level_id").eq("id", student.admission_application_id).eq("school_id", school.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    supabase.from("class_arms").select("id, name, class_id, is_active").eq("school_id", school.id),
+    supabase.from("class_arms").select("id, name, class_id").eq("school_id", school.id),
     supabase.from("school_classes").select("id, name, is_active").eq("school_id", school.id),
     supabase.from("academic_programmes").select("id, name, department_id, is_active").eq("school_id", school.id).order("name"),
     supabase.from("academic_levels").select("id, name, programme_id, sequence, is_active").eq("school_id", school.id).order("sequence").order("name"),

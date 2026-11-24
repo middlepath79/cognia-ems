@@ -62,7 +62,7 @@ async function getFilterOptions(schoolId: string): Promise<FilterOptions> {
   const [{ data: sessions }, { data: terms }, { data: classes }, { data: subjects }] = await Promise.all([
     supabase.from("academic_sessions").select("id,name").eq("school_id", schoolId).order("start_date", { ascending: false }),
     supabase.from("academic_terms").select("id,name").eq("school_id", schoolId).order("created_at", { ascending: false }),
-    supabase.from("classes").select("id,name,level,arm").eq("school_id", schoolId).order("name"),
+    supabase.from("school_classes").select("id,name").eq("school_id", schoolId).order("name"),
     supabase.from("subjects").select("id,name,code").eq("school_id", schoolId).order("name"),
   ]);
   return {
@@ -77,13 +77,13 @@ async function getStudentPerformance(schoolId: string, filters: ReportFilters): 
   const supabase = await createClient();
 
   let query = supabase
-    .from("final_results")
+    .from("academic_period_results")
     .select(`
       id,
       student_id,
       subject_id,
-      session_id,
-      term_id,
+      academic_session_id,
+      academic_term_id,
       ca_contribution,
       examination_contribution,
       final_total,
@@ -96,8 +96,8 @@ async function getStudentPerformance(schoolId: string, filters: ReportFilters): 
     `)
     .eq("school_id", schoolId);
 
-  if (filters.sessionId) query = query.eq("session_id", filters.sessionId);
-  if (filters.termId) query = query.eq("term_id", filters.termId);
+  if (filters.sessionId) query = query.eq("academic_session_id", filters.sessionId);
+  if (filters.termId) query = query.eq("academic_term_id", filters.termId);
   if (filters.subjectId) query = query.eq("subject_id", filters.subjectId);
   if (filters.classId) {
     const { data: classEnrolments, error: classError } = await supabase

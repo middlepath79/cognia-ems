@@ -1,11 +1,10 @@
 "use server";
 
-import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentSchool } from "@/lib/current-school";
 import { validateStaffForm, type StaffFormValues } from "@/lib/staff-utils";
 
-export type StaffState = { error?: string; success?: string; invitationToken?: string };
+export type StaffState = { error?: string; success?: string };
 
 function formValues(form: FormData): StaffFormValues {
   const value = (key: string) => String(form.get(key) ?? "").trim();
@@ -66,6 +65,23 @@ export async function saveStaffRecord(_state: StaffState, form: FormData): Promi
   if (validationError) return { error: validationError };
 
   const { supabase, school, userId: actor } = await getCurrentSchool();
+
+  const existingQuery = values.id
+    ? supabase
+        .from("staff_records")
+        .select("id,user_id,account_status")
+        .eq("id", values.id)
+        .eq("school_id", school.id)
+        .maybeSingle()
+    : null;
+  const existingResult = existingQuery
+    ? await executeStaffQuery("find staff profile", existingQuery)
+    : { data: null, error: null };
+  if (!existingResult) return { error: "Staff data could not be loaded. Refresh the page and try again." };
+  const { data: existing, error: existingError } = existingResult;
+  if (existingError) return { error: databaseError("find staff profile", existingError) };
+  if (values.id && !existing) return { error: "This staff profile is no longer available in this institution. Refresh the page and try again." };
+
   if (values.userId) {
     const membershipResult = await executeStaffQuery("verify membership", supabase
       .from("school_memberships")
@@ -83,6 +99,21 @@ export async function saveStaffRecord(_state: StaffState, form: FormData): Promi
     const expectedRole = values.staffCategory === "teaching" ? "teacher" : "staff";
     if (membership.role !== "school_admin" && membership.role !== expectedRole) {
       return { error: `This account's role does not match the ${values.staffCategory.replaceAll("_", " ")} staff category.` };
+    }
+
+    if (!existing || values.userId !== existing.user_id) {
+      let linkedProfileQuery = supabase
+        .from("staff_records")
+        .select("id")
+        .eq("school_id", school.id)
+        .eq("user_id", values.userId);
+      if (existing) linkedProfileQuery = linkedProfileQuery.neq("id", existing.id);
+      const linkedProfileResult = await executeStaffQuery("check linked staff profile", linkedProfileQuery.maybeSingle());
+      if (!linkedProfileResult) return { error: "The linked staff profile could not be verified. Refresh the page and try again." };
+      if (linkedProfileResult.error) return { error: databaseError("check linked staff profile", linkedProfileResult.error) };
+      if (linkedProfileResult.data) {
+        return { error: "This account already has a staff profile in this institution. Edit that profile instead." };
+      }
     }
   }
 
@@ -111,29 +142,6 @@ export async function saveStaffRecord(_state: StaffState, form: FormData): Promi
     if (managerError) return { error: databaseError("verify reporting manager", managerError) };
     if (!manager || manager.id === values.id) return { error: "Choose another staff member as the reporting manager." };
   }
-
-  const existingQuery = values.id
-    ? supabase
-        .from("staff_records")
-        .select("id,user_id,account_status")
-        .eq("id", values.id)
-        .eq("school_id", school.id)
-        .maybeSingle()
-    : values.userId
-      ? supabase
-        .from("staff_records")
-        .select("id,user_id,account_status")
-        .eq("school_id", school.id)
-        .eq("user_id", values.userId)
-        .maybeSingle()
-      : null;
-  const existingResult = existingQuery
-    ? await executeStaffQuery("find staff profile", existingQuery)
-    : { data: null, error: null };
-  if (!existingResult) return { error: "Staff data could not be loaded. Refresh the page and try again." };
-  const { data: existing, error: existingError } = existingResult;
-  if (existingError) return { error: databaseError("find staff profile", existingError) };
-  if (values.id && !existing) return { error: "This staff profile is no longer available. Refresh the page and try again." };
 
   const record = {
     user_id: values.userId || existing?.user_id || null,
@@ -177,41 +185,13 @@ export async function saveStaffRecord(_state: StaffState, form: FormData): Promi
   if (!saveResult) return { error: "Staff data could not be saved. Refresh the page and try again." };
   const { data, error } = saveResult;
   if (error || !data) {
-    if (error?.code === "23505") return { error: "Employee number or staff profile already exists in this institution." };
+    if (error?.code === "23505") return { error: "The employee ID, email, or linked account already exists in this institution." };
     return { error: databaseError("save staff profile", error) };
   }
 
-  let invitationToken: string | undefined;
-  if (!existing && !values.userId) {
-    const token = randomBytes(32).toString("hex");
-    const tokenHash = createHash("sha256").update(token).digest("hex");
-    const role = values.staffCategory === "teaching" ? "teacher" : "staff";
-    const invitationResult = await executeStaffQuery("invite staff member", supabase.rpc("create_school_invitation", {
-      target_school_id: school.id,
-      invite_email: values.email.toLowerCase(),
-      invite_role: role,
-      invite_token_hash: tokenHash,
-    }));
-    if (!invitationResult || invitationResult.error) {
-      if (invitationResult?.error) {
-        console.error("Unable to create staff invitation", {
-          code: invitationResult.error.code,
-          message: invitationResult.error.message?.slice(0, 300),
-        });
-      }
-      if (["22P02", "42P01", "42703", "42704", "42883", "PGRST202", "PGRST204", "PGRST205"].includes(invitationResult?.error?.code ?? "")) {
-        return { error: "The Staff schema or invitation function is unavailable. Apply the COGNIA staff migrations and refresh the API schema cache." };
-      }
-      return { error: "Staff profile was saved, but its invitation could not be created. Use Invitations to retry." };
-    }
-    invitationToken = token;
-  }
-
   revalidatePath("/admin/staff");
-  revalidatePath("/admin/invitations");
   return {
-    success: existing ? "Staff profile updated." : invitationToken ? "Staff profile created and invitation ready to share." : "Staff profile created.",
-    invitationToken,
+    success: existing ? "Staff profile updated." : "Staff profile created. Create an invitation separately when the employee is ready for account access.",
   };
 }
 
